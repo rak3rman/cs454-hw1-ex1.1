@@ -3,40 +3,32 @@ import java.util.*;
 public class Philosophers {
 
     private static int n;
-    private static Peterson chop[];
+    private static Peterson chop;
 
     private static class Peterson {
-        private volatile boolean[] flag = new boolean[2];
-        private volatile int victim;
 
-        public Peterson() {
-            flag[0] = false;
-            flag[1] = false;
+        private volatile HashSet<Integer> flags = new HashSet<Integer>();
+        private volatile HashMap<Integer, Integer> victs = new HashMap<Integer, Integer>();
+
+        public void lock(int philoId) {
+            // Set flags (philo is interested in monching)
+            flags.add(Integer.valueOf(philoId));
+
+            // Set victims
+            victs.put(Integer.valueOf(philoId), Integer.valueOf(philoId));
+            victs.put(Integer.valueOf((philoId + 1) % n), Integer.valueOf(philoId));
+
+            // Determine position of right and left chopsticks
+            Integer right = (philoId == 0) ? Integer.valueOf(n -1) : Integer.valueOf(philoId -1);
+            Integer left = Integer.valueOf((philoId + 1) % n);
+
+            // Only enter critical section when both right and left chopsticks are available
+            while((flags.contains(right) && victs.get(philoId) == philoId) ||
+                  (flags.contains(left) && victs.get((philoId + 1) % n) == philoId)) {}
         }
 
-        private int convertId(int chopId, int philoId) {
-            int right = 1;
-            int left = 0;
-            if (philoId == chopId) {
-                philoId = right;
-            } else {
-                philoId = left;
-            }
-            return philoId;
-        }
-
-        public void lock(int chopId, int philoId) {
-            int id = convertId(chopId, philoId);
-            flag[id] = true;
-            victim = id;
-
-            System.out.println("Philo " + philoId + " locking chop " + id);
-
-            while(flag[(id + 1) % 2] && victim == id) {}
-        }
-
-        public void unlock(int chopId, int philoId) {
-            flag[convertId(chopId, philoId)] = false;
+        public void unlock(int philoId) {
+            flags.remove(Integer.valueOf(philoId));
         }
     }
 
@@ -50,14 +42,15 @@ public class Philosophers {
         public void run(){
             System.out.println("Philo " + id + " is thinking for 1.5 secs...");
             try {Thread.sleep(1500);} catch (Exception e){}
+
             System.out.println("Philo " + id + " wants to munch, trying to get 2 chopsticks...");
-            chop[(id + 1) % n].lock((id + 1) % n, id);
-            System.out.println("Philo " + id + " got left chopstick, trying to get right...");
-            chop[id].lock(id, id);
-            System.out.println("Philo " + id + " got right chopstick, monching...");
+            chop.lock(id);
+
+            System.out.println("Philo " + id + " got both chopsticks, monching...");
             try {Thread.sleep(1500);} catch (Exception e){}
-            chop[id].unlock(id, id);
-            chop[(id + 1) % n].unlock((id + 1) % n, id);
+
+            System.out.println("Philo " + id + " finished monching...");
+            chop.unlock(id);
         }
     }
 
@@ -69,10 +62,7 @@ public class Philosophers {
         System.out.println("Philosopher count: " + n);
 
         // Setup chopsticks array
-        chop = new Peterson[n];
-        for (int i = 0; i < n; i++) {
-            chop[i] = new Peterson();
-        }
+        chop = new Peterson();
 
         // Loop over n to create and start a thread for each philosopher
         for (int i = 0; i < n; i++) {
